@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Crypto Credit Management</title>
+    <style>
+        body {
+            /* background-color: black; */
+            /* color: white; */
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        #buttons {
+            display: flex;
+            justify-content: space-around;
+            width: 50%;
+            margin-bottom: 20px;
+        }
+
+        .action-button {
+            padding: 10px 20px;
+            background-color: blue;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .action-button:hover {
+            background-color: rgb(32, 27, 27);
+        }
+
+        form {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Style the labels and the radio buttons */
+        input[type="radio"] {
+            display: none;
+        }
+
+        label {
+            display: inline-block;
+            padding: 10px 20px;
+            border: 2px solid blue;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: white;
+            color: blue;
+        }
+
+        /* Change the label color when the corresponding radio button is checked */
+        input[type="radio"]:checked + label {
+            background-color: blue;
+            color: white;
+        }
+
+        /* Add a hover effect to the labels */
+        label:hover {
+            background-color: rgb(0, 0, 0);
+            color: white;
+        }
+
+        /* Style the submit button */
+        input[type="submit"] {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: blue;
+            color: white;
+        }
+
+        input[type="submit"]:hover {
+            background-color: rgb(0, 0, 0);
+        }
+    </style>
+</head>
+<body>
+    <h1>CRYPTO CREDIT MANAGEMENT</h1>
+
+    <button onclick="window.location.href='/'">HOME</button>
+
+    <div id="user-info"></div>
+
+    <div id="buttons">
+        <button class="action-button" id="buy-btn">Buy Credits</button>
+        <button class="action-button" id="withdraw-btn">Withdraw Credits</button>
+    </div>
+
+    <form id="buy-form" action="/newCharge" method="post">
+        <!-- <input type="radio" id="5" name="price" value="5.00" required=true>
+        <label for="5">$5.00</label> -->
+
+        <input type="radio" id="10" name="price" value="10.00" required=true>
+        <label for="10">$10.00</label>
+
+        <input type="radio" id="20" name="price" value="20.00" required=true>
+        <label for="20">$20.00</label>
+        
+        <input type="radio" id="50" name="price" value="50.00" required=true>
+        <label for="50">$50.00</label>
+
+        <input type="radio" id="100" name="price" value="100.00" required=true>
+        <label for="100">$100.00</label>
+
+        <input type="submit" value="Buy Credits">
+    </form>
+
+    <form id="withdraw-form" action="/withdraw" method="post">
+        <label for="wallet_address">Wallet Address</label>
+        <input id="wallet_address" name="wallet_address" required="true">
+
+        <label for="withdraw_amount">Withdraw Amount</label>
+        <input type="number" id="withdraw_amount" name="withdraw_amount" min="10" step=".01" required=true>
+
+        <label for="currency">Select Currency:</label>
+        <select name="currency" id="currency" required=true>
+            <option value="BTC">BTC</option>
+            <option value="ETH">ETH</option>
+        </select>
+
+        <input type="submit" value="Withdraw Credits">
+    </form>
+
+    <script>
+        window.onload = function() {
+            fetch('/api/user')
+                .then(response => response.json())
+                .then(data => {
+                    data.credits = data.credits.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                    // Update the user info div with the fetched data
+                    document.getElementById('user-info').textContent = `${data.email}: ${data.credits}`;
+                })
+                .catch(error => console.error('Error:', error));
+        };
+
+        document.getElementById('buy-btn').addEventListener('click', function() {
+            document.getElementById('buy-form').style.display = 'flex';
+            document.getElementById('withdraw-form').style.display = 'none';
+        });
+
+        document.getElementById('withdraw-btn').addEventListener('click', function() {
+            document.getElementById('withdraw-form').style.display = 'flex';
+            document.getElementById('buy-form').style.display = 'none';
+        });
+    </script>
+</body>
+</html>

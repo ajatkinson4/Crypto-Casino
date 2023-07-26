@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        button, input[type=submit] {
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: red;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover, input[type=submit]:hover {
+            background-color: rgb(32, 27, 27);
+        }
+        form {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+        label, input {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>CRYPTO SLOTS</h1>
+
+    <button id="signIn-btn">Sign In</button>
+    <button id="create-user-btn">Create User</button>
+
+    <form id="signIn-form" action="/signIn" method="post">
+        <label for="email">Email:</label>
+        <input type="text" id="email" name="email">
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password">
+
+        <img src="/captcha" alt="CAPTCHA" id="captcha-image">
+        <input type="text" id="captcha" name="captcha" required>
+
+        <input type="submit" value="Log In">
+        <button type="button" id="back-btn-1">Back</button>
+    </form>
+
+    <form id="create-user-form" action="/createUser" method="post">
+        <label for="signup-email">Email:</label>
+        <input type="text" id="signup-email" name="email">
+        <label for="signup-password">Password:</label>
+        <input type="password" id="signup-password" name="password">
+
+        <img src="/captcha" alt="CAPTCHA" id="captcha-image">
+        <input type="text" id="captcha" name="captcha" required>
+
+        <input type="submit" value="Create User">
+        <button type="button" id="back-btn-2">Back</button>
+    </form>
+
+    <script>
+        document.getElementById('signIn-btn').addEventListener('click', function() {
+            this.style.display = 'none';
+            document.getElementById('create-user-btn').style.display = 'none';
+            document.getElementById('signIn-form').style.display = 'flex';
+        });
+
+        document.getElementById('create-user-btn').addEventListener('click', function() {
+            this.style.display = 'none';
+            document.getElementById('signIn-btn').style.display = 'none';
+            document.getElementById('create-user-form').style.display = 'flex';
+        });
+
+        document.getElementById('back-btn-1').addEventListener('click', function() {
+            document.getElementById('signIn-form').style.display = 'none';
+            document.getElementById('signIn-btn').style.display = 'inline-block';
+            document.getElementById('create-user-btn').style.display = 'inline-block';
+        });
+
+        document.getElementById('back-btn-2').addEventListener('click', function() {
+            document.getElementById('create-user-form').style.display = 'none';
+            document.getElementById('signIn-btn').style.display = 'inline-block';
+            document.getElementById('create-user-btn').style.display = 'inline-block';
+        });
+    </script>
+</body>
+</html>
