@@ -191,6 +191,7 @@ app.get('/:username', requireLogin, (req, res) => {
 });
 
 app.use('/:username/slotMachine', requireLogin, express.static(path.join(__dirname, 'games', 'slotMachine')));
+app.use('/:username/roulette', requireLogin, express.static(path.join(__dirname, 'games', 'roulette')));
 
 // app.get('/:game/user/:username', requireLogin, (req, res, next) => {
 //     let game = req.params.game;
@@ -219,6 +220,9 @@ app.get('/api/user', async (req, res) => {
         return res.status(404).send('User not found');
     }
 
+    user.credits = user.credits.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    user.credits = Number(user.credits);
+
     // Send the user's data
     res.json({ email: user.email, credits: user.credits });
 });
@@ -227,16 +231,17 @@ app.get('/api/user', async (req, res) => {
 // API endpoint to subtract the bet amount from the user's credits
 app.post('/api/bet', async (req, res) => {
     try {
-        console.log(req.body);
         var { bet } = req.body;   
         
         // Find the user in the database
         const user = await User.findOne({ email: req.session.email });
-        
+
         // If the user doesn't exist, send back an error
         if (!user) {
             return res.status(404).send('User not found');
         }
+        
+        console.log(`${user.username}: bet-${bet}`);
 
         bet = bet.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
         bet = Number(bet);
@@ -261,7 +266,6 @@ app.post('/api/bet', async (req, res) => {
 
 // API endpoint to add the win amount to the user's credits
 app.post('/api/win', async (req, res) => {    
-    console.log(req.body);
     var { win } = req.body;
     
     // Find the user in the database
@@ -270,6 +274,8 @@ app.post('/api/win', async (req, res) => {
     if (!user) {
         return res.status(404).send('User not found');
     }
+
+    console.log(`${user.username}: win-${win}`);
 
     win = win.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
     win = Number(win);
@@ -339,7 +345,7 @@ app.post('/newCharge', async (req, res) => {
 
 app.post('/commerce-notification', async (req, res) => {
     const signature = req.headers['x-cc-webhook-signature'];
-    const hmac = crypto.createHmac('sha256', 'fdbc5917-c45c-4174-a8e1-3a39fd7e59fc');
+    const hmac = crypto.createHmac('sha256', COMMERCE_API_SECRET);
     const hash = hmac.update(req.rawBody).digest('hex');
 
     if (signature !== hash) {
@@ -353,16 +359,7 @@ app.post('/commerce-notification', async (req, res) => {
     const eventType = req.body.event.type;
     const chargeData = req.body.event.data;
 
-    let userEmail = null;
-
-    if (chargeData.metadata.email !== req.session.email) {
-        console.log('CANNOT VERIFY USER!');
-        return res.redirect('/');
-    } else {
-        userEmail = chargeData.metadata.email;
-    }
-
-    // const userEmail = chargeData.metadata.email; // Assuming you're storing user email in metadata
+    const userEmail = chargeData.metadata.email; // Assuming you're storing user email in metadata
     const checkoutId = chargeData.id;
     var amount = chargeData.pricing.local.amount; // Assuming you want the local amount
     const chargeCode = chargeData.code;
@@ -373,7 +370,7 @@ app.post('/commerce-notification', async (req, res) => {
     const user = await User.findOne({ email: userEmail });
     if (!user) {
         console.log('USER NOT FOUND');
-        return;
+        return res.status(404).send('User not found');
     }
     
     // Update condition to check if status is PENDING
@@ -455,7 +452,10 @@ app.post('/withdraw', async (req, res) => {
 
     // Get the USD to Selected Crypto exchange rate
     const usdToCryptoRate = exchangeRateData.data.rates.USD;
-    const cryptoAmount = withdraw_amount / usdToCryptoRate;
+
+    var cryptoAmount = withdraw_amount / usdToCryptoRate;
+    cryptoAmount = Number(cryptoAmount.toFixed(8));  // limit to 8 decimal places
+
 
     const accountID = '98bdbfe3-aea1-5495-b4eb-d660c3fcc288' //BTC
     
@@ -484,15 +484,8 @@ app.post('/withdraw', async (req, res) => {
 
                 console.log(tx);
                 console.log(`CRYPTO SENT \n TO: ${wallet_address} \n AMOUNT: ${withdraw_amount}`)
-                res.redirect(`/game/user/${user.username}/credit-management`)
+                res.redirect(`/${user.username}/credit-management`)
             });
-
-            console.log(`CRYPTO SENT: ${req.session.email} \nTO: ${wallet_address} \nAMOUNT: ${withdraw_amount} USD`);
-
-            user.credits -= withdraw_amount;
-            await user.save();
-
-            res.redirect(`/${user.username}/credit-management`)
         });
         
     } catch (error) {
@@ -531,14 +524,19 @@ app.post('/send-money', (req, res) => {
 });
   
 
-app.get('/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if(err) {
-            return console.log(err);
+app.delete('/logout', (req, res) => {
+    if (req.session) {
+        req.session.destroy(err => {
+        if (err) {
+            res.status(400).send('Unable to log out')
+        } else {
+            res.send('Logout successful')
         }
-        res.redirect('/'); // After session destroy, redirect user back to main page
-    });
-});  
+        });
+    } else {
+        res.end()
+    }
+})
 
 
 app.listen(3000, () => console.log('Server running on port 3000'));

@@ -144,7 +144,7 @@
                     data.credits = data.credits.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
                     // Update the user info div with the fetched data
-                    document.getElementById('user-info').textContent = `${data.email}: ${data.credits}`;
+                    document.getElementById('user-info').textContent = `${data.email}: $${data.credits}`;
                 })
                 .catch(error => console.error('Error:', error));
         };
