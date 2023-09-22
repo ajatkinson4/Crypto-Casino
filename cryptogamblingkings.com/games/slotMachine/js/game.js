@@ -8,6 +8,7 @@ var slotData = {spin:false, lines:9, amount:0, extraslot:2, spinComplete:0, arra
 var oddsData = {spin:{index:0, min:2, max:4, count:0}, joy:{index:0, min:50, max:80, count:0}, extremeCon:false, normal:[], wild:[], extreme:[]};
 
 var loggedInEmail = "";
+var username = "";
 
 fetch('/api/user')
     .then(response => {
@@ -20,6 +21,8 @@ fetch('/api/user')
         // This block will be executed after the response has been converted to JSON
         // Update the loggedInEmail and creditAmount in your game
 		loggedInEmail = data.email
+		username = loggedInEmail.substring(0, loggedInEmail.indexOf("@"));
+
         playerData.credit = data.credits;
     })
     .catch(error => {
@@ -89,7 +92,6 @@ function buildGameButton(){
 	// });
 
 	console.log(loggedInEmail, playerData.credit);
-	const username = loggedInEmail.substring(0, loggedInEmail.indexOf("@"));
 
 	itemCredit.cursor = "pointer";
 	itemCredit.addEventListener("click", function(evt) {
@@ -228,7 +230,7 @@ function goPage(page){
 		break;
 		
 		case 'result':
-			window.location.replace("/");
+			window.location.replace(`/${username}`);
 			// targetContainer = resultContainer;
 			// playSound('soundResult');
 			
@@ -949,12 +951,33 @@ function placeWinAnimateSlots(){
  * CHECK WIN AMOUNT - This is the function that runs to check win amount
  * 
  */
-function checkWinAmount(){
-	playerData.win = 0;
-	for(var n=0; n<slotData.linesArray.length; n++){
-		var linesPay = slotData.linesArray[n].pay;
-		playerData.win += linesPay * playerData.amount;
+async function checkWinAmount(){
+	// playerData.win = 0;
+	// for(var n=0; n<slotData.linesArray.length; n++){
+	// 	var linesPay = slotData.linesArray[n].pay;
+	// 	playerData.win += linesPay * playerData.amount;
+	// }
+
+	try {
+		let response = await fetch('/api/checkWin', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				linesArray: slotData.linesArray,
+				amount: playerData.amount
+			})
+		});
+		let { win } = await response.json();
+		// playerData.credit = credits;
+		playerData.win = win;
+		// ... handle the rest of the updates as needed
+	} catch (error) {
+		console.error('Error:', error);
+		window.location.replace(`/${username}/signIn`);	
 	}
+	
 	
 	if(typeof memberData == 'undefined'){
 		playerData.credit -= playerData.bet;
@@ -972,20 +995,20 @@ function checkWinAmount(){
 	if(playerData.win > 0){
 		playSound('soundWin');
 
-		try {
-			let response = fetch('/api/win', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					// email: loggedInEmail,  // replace this with the logged in user's email
-					win: playerData.win
-				})
-			});
-		} catch (error) {
-			console.error('Error:', error);
-		}
+		// try {
+		// 	let response = fetch('/api/win', {
+		// 		method: 'POST',
+		// 		headers: {
+		// 			'Content-Type': 'application/json'
+		// 		},
+		// 		body: JSON.stringify({
+		// 			// email: loggedInEmail,  // replace this with the logged in user's email
+		// 			win: playerData.win
+		// 		})
+		// 	});
+		// } catch (error) {
+		// 	console.error('Error:', error);
+		// }
 	}
 	updateGameStat();
 }
@@ -1190,7 +1213,11 @@ function updateGameStat(){
 
 function startCreditAlert(){
 	slotData.creditAlert = 1;
-	animateCreditAlert()
+	animateCreditAlert();
+
+	if (Number(formatCurrency(playerData.credit)) == 0) {
+		window.location.replace(`/${username}/credit-management`);	
+	}
 }
 
 function animateCreditAlert(){

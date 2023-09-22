@@ -30,7 +30,8 @@ app.use(express.json());
 app.use(session({
     secret: crypto.randomBytes(32).toString('hex'), 
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: true,
+    cookie: { secure: false } //set true when using https
 }));
 
 require('dotenv').config();
@@ -93,17 +94,20 @@ const User = mongoose.model('User', userSchema);
 function requireLogin(req, res, next) {
     if (!req.session.email) {
         // If the user is not logged in, redirect to the homepage
-        res.redirect('/');
+        res.redirect('/signIn');
     } else {
         // If the user is logged in, continue to the next middleware or route handler
         next();
     }
 }
 
-
+// app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'home.html'));
+    res.sendFile(path.join(__dirname, 'signIn.html'));
+    // res.sendFile(path.join(__dirname, 'assets', 'index.html'));
 });
+
+// app.use('/', requireLogin, express.static(path.join(__dirname, 'assets', 'index.html')));
 
 app.get('/signIn', (req, res) => {
     res.sendFile(path.join(__dirname, 'signIn.html'));
@@ -124,10 +128,12 @@ app.post('/createUser', async (req, res) => {
         // Hash the password
         const hashedPassword = await bcrypt.hash(password, 10);
     
-        var credits = 0;
+        // USER CREDITS (CHANGE BACK TO ZERO IN PRODUCTION) \\
+        var credits = 10;
         credits = credits.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
         credits = Number(credits);
-        
+        //////////////////////////////////////////////////////
+
         // Create a new user with the hashed password
         const user = new User({ 
             email: email, 
@@ -139,11 +145,11 @@ app.post('/createUser', async (req, res) => {
     
         await user.save();
     
-        console.log(`NEW USER: ${user.username}`)
+        console.log(`CREATE USER: ${user.username}`)
     
         // Log the user in and redirect to the game
         req.session.email = user.email;
-        return res.redirect(`/${user.username}`);
+        return res.redirect(`/${user.username}/slotMachine`);
     } else {
         return res.status(400).send('Captcha verification failed');
     }
@@ -153,7 +159,7 @@ app.post('/createUser', async (req, res) => {
 app.post('/signIn', async (req, res) => {
     const { email, password, captcha } = req.body;
 
-    if(req.body.captcha === req.session.captcha) {
+    // if(req.body.captcha === req.session.captcha) {
         // Find the user in the database
         const user = await User.findOne({ email });
     
@@ -165,11 +171,13 @@ app.post('/signIn', async (req, res) => {
         // If the login is successful, save the user's email in the session and redirect to the game
         req.session.email = user.email;
         // req.session.username = user.username;
-    
-        res.redirect(`/${user.username}`);
-    } else {
-        return res.status(400).send('Captcha verification failed');
-    }
+        
+        console.log(`SIGN IN: ${user.username}`)
+
+        return res.redirect(`/${user.username}/slotMachine`);
+    // } else {
+    //     return res.status(400).send('Captcha verification failed');
+    // }
 });
 
 
@@ -190,24 +198,14 @@ app.get('/:username', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'home.html'));
 });
 
+
 app.use('/:username/slotMachine', requireLogin, express.static(path.join(__dirname, 'games', 'slotMachine')));
+app.use('/:username/blackjack', requireLogin, express.static(path.join(__dirname, 'games', 'blackjack')));
 app.use('/:username/roulette', requireLogin, express.static(path.join(__dirname, 'games', 'roulette')));
-
-// app.get('/:game/user/:username', requireLogin, (req, res, next) => {
-//     let game = req.params.game;
-//     let username = req.params.username;
-
-//     app.use(express.static(path.join(__dirname, 'games', game)));
-
-//     // Continue to the next middleware function
-//     next();
-// });
-
-
 
 
 // Sends client side the current user's info
-app.get('/api/user', async (req, res) => {
+app.get('/api/user',  requireLogin, async (req, res) => {
     if (!req.session.email) {
         return res.status(401).send('User not logged in');
     }
@@ -220,28 +218,23 @@ app.get('/api/user', async (req, res) => {
         return res.status(404).send('User not found');
     }
 
-    user.credits = user.credits.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    user.credits = Number(user.credits);
-
     // Send the user's data
     res.json({ email: user.email, credits: user.credits });
 });
 
 
 // API endpoint to subtract the bet amount from the user's credits
-app.post('/api/bet', async (req, res) => {
+app.post('/api/bet',  requireLogin, async (req, res) => {
     try {
         var { bet } = req.body;   
         
         // Find the user in the database
         const user = await User.findOne({ email: req.session.email });
-
+        
         // If the user doesn't exist, send back an error
         if (!user) {
             return res.status(404).send('User not found');
         }
-        
-        console.log(`${user.username}: bet-${bet}`);
 
         bet = bet.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
         bet = Number(bet);
@@ -254,6 +247,11 @@ app.post('/api/bet', async (req, res) => {
         
         // Save the updated user
         await user.save();
+        console.log(`${user.username}: BET=${bet}, CREDITS=${user.credits}`)
+
+
+        // win = checkWinAmount(user, bet);
+
         
         res.json({ credits: user.credits });
     } catch (error) {
@@ -265,7 +263,7 @@ app.post('/api/bet', async (req, res) => {
 
 
 // API endpoint to add the win amount to the user's credits
-app.post('/api/win', async (req, res) => {    
+app.post('/api/win',  requireLogin, async (req, res) => {    
     var { win } = req.body;
     
     // Find the user in the database
@@ -274,8 +272,6 @@ app.post('/api/win', async (req, res) => {
     if (!user) {
         return res.status(404).send('User not found');
     }
-
-    console.log(`${user.username}: win-${win}`);
 
     win = win.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
     win = Number(win);
@@ -288,8 +284,65 @@ app.post('/api/win', async (req, res) => {
     
     // Save the updated user
     await user.save();
+
+    console.log(`${user.username}: WIN=${win}, CREDITS=${user.credits}`)
     
     res.json({ credits: user.credits });
+});
+
+
+// SLOT MACHINE ONLY \\
+app.post('/api/checkWin', requireLogin, async (req, res) => {
+    try {
+        const { linesArray, amount } = req.body;
+
+        var betAmount_arr = [
+            0.05,
+            0.10,
+            0.15,
+            0.20,
+            0.25,
+            0.30,
+            0.35,
+            0.40,
+            0.45,
+            0.50
+        ];
+        
+        // TODO: retrieve the user from your database using the logged in user's email
+        const user = await User.findOne({ email: req.session.email });
+
+        if (!user) {
+            return res.status(404).send('User not found');
+        }
+
+        if (!betAmount_arr.includes(amount)) {
+            console.log(`${user.email}: CODE MANIPULATION`);
+            return res.redirect('/logout');
+        }
+        
+        let win = 0;
+        for(let n=0; n<linesArray.length; n++){
+            var linesPay = linesArray[n].pay;
+            win += linesPay * amount;
+        }
+        
+        
+        user.credits += win;
+
+        if (win > 0) {
+            console.log(`${user.username}: WIN=${win}, CREDITS=${user.credits}`);
+        }
+
+        
+        // TODO: update the user's credits in your database
+        await user.save();
+
+        res.json({ credits: user.credits, win: win });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).send('An error occurred');
+    }
 });
 
 
@@ -298,7 +351,7 @@ app.get('/:username/credit-management', requireLogin, (req, res) => {
 });
 
 
-app.post('/newCharge', async (req, res) => {
+app.post('/newCharge',  requireLogin, async (req, res) => {
     const price = req.body.price;
     const email = req.session.email;
 
@@ -320,8 +373,8 @@ app.post('/newCharge', async (req, res) => {
         metadata: {
             email: email
         },
-        redirect_url: `http://localhost:3000/${user.username}/credit-management`,
-        cancel_url: `http://localhost:3000/${user.username}/credit-management/`
+        redirect_url: `https://cryptogamblingkings.com/${user.username}/credit-management`,
+        cancel_url: `https://cryptogamblingkings.com/${user.username}/credit-management/`
     };
 
     // Create a charge via Coinbase Commerce API
@@ -343,7 +396,7 @@ app.post('/newCharge', async (req, res) => {
 });
 
 
-app.post('/commerce-notification', async (req, res) => {
+app.post('/commerce-notification',  requireLogin, async (req, res) => {
     const signature = req.headers['x-cc-webhook-signature'];
     const hmac = crypto.createHmac('sha256', COMMERCE_API_SECRET);
     const hash = hmac.update(req.rawBody).digest('hex');
@@ -352,8 +405,8 @@ app.post('/commerce-notification', async (req, res) => {
         console.log('❌ Invalid signature');
         res.status(400).send('Invalid signature');
         return;
-    } else {
-        console.log('✅ Coinbase: BUY');
+    } else if (req.body.event.type === 'charge:created') {
+        console.log('✅ Coinbase: CHARGE CREATED');
     }
 
     const eventType = req.body.event.type;
@@ -371,6 +424,8 @@ app.post('/commerce-notification', async (req, res) => {
     if (!user) {
         console.log('USER NOT FOUND');
         return res.status(404).send('User not found');
+    } else {
+        console.log(`USER FOUND: ${user.email}`)
     }
     
     // Update condition to check if status is PENDING
@@ -379,6 +434,15 @@ app.post('/commerce-notification', async (req, res) => {
             let chargeIndex = user.chargeHistory.findIndex(e => e.chargeCode === chargeCode);
             // If the charge code doesn't exist in charge history, add it
             if (chargeIndex === -1) {
+                amount = amount.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                amount = Number(amount);
+
+                user.credits = user.credits.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                user.credits = Number(user.credits);
+
+                // // Update credits
+                user.credits += amount;
+
                 user.chargeHistory.push({
                     checkoutId: checkoutId,
                     amount: amount,
@@ -392,6 +456,7 @@ app.post('/commerce-notification', async (req, res) => {
                 user.chargeHistory[chargeIndex].status = status;
                 user.chargeHistory[chargeIndex].timestamp = timestamp;
             }
+
             await user.save();
             console.log(`${chargeCode} STATUS: PENDING`);
         } catch (err) {
@@ -406,16 +471,6 @@ app.post('/commerce-notification', async (req, res) => {
             user.chargeHistory[chargeIndex].status = status;
             user.chargeHistory[chargeIndex].timestamp = timestamp;
 
-            amount = amount.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            amount = Number(amount);
-
-            user.credits = user.credits.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            user.credits = Number(user.credits);
-
-            // Update credits
-            user.credits += amount;
-
-            await user.save();
             console.log(`${chargeCode} STATUS: COMPLETED`);
             
             //Redirect to login page
@@ -430,22 +485,53 @@ app.post('/commerce-notification', async (req, res) => {
 
 
 // Coinbase BTC - 98bdbfe3-aea1-5495-b4eb-d660c3fcc288
-// Exodus BTC - bc1qezr90e39kdv2sdeehmducrqgqfr0m8w9cyna2q
-app.post('/withdraw', async (req, res) => {
+// Exodus BTC - bc1q23c0eqh7nkdl7afj36uvs6tw5ld0spe8kn0wpe
+app.post('/withdraw',  requireLogin, async (req, res) => {
     const wallet_address = req.body.wallet_address;
     var withdraw_amount = req.body.withdraw_amount;
     const currency = req.body.currency;
 
     const user = await User.findOne({ email: req.session.email });
 
+    if (!user) {
+        console.log('USER NOT FOUND');
+        return res.status(404).send('User not found');
+    }
+
+
+    // Initialize withdrawal flag as false
+    let canWithdraw = false;
+
+    // Check if user has a charge history
+    if (user.chargeHistory && user.chargeHistory.length > 0) {
+        // User has a charge history --> Enable withdrawal
+        canWithdraw = true;
+    }
+
+    // If user cannot withdraw, return an error message
+    if (!canWithdraw) {
+        return res.status(400).send('Withdrawing is disabled until you purchase credit.');
+    }
+
+
     withdraw_amount = withdraw_amount.toLocaleString('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 });
     withdraw_amount = Number(withdraw_amount);
-
-    if (withdraw_amount < 10.00) {
+    
+    // set initial credits
+    const initial_credits = 10.00;
+    
+    // check if user has won more than the initial credits or if their balance had dropped to zero
+    if ((user.credits - initial_credits) < withdraw_amount && user.credits != initial_credits) {
+        return res.status(400).send('You can only withdraw the amount you have won');
+    }
+    
+    if (withdraw_amount <= 10) {
         return res.status(400).send('Withdraw amount must be more than $10');
     } else if (user.credits < withdraw_amount) {
         return res.status(400).send('Not enough credits for withdrawal');
     }
+    
+    
 
     const exchangeRate = await fetch(`https://api.coinbase.com/v2/exchange-rates?currency=${currency}`);
     const exchangeRateData = await exchangeRate.json();
@@ -455,7 +541,6 @@ app.post('/withdraw', async (req, res) => {
 
     var cryptoAmount = withdraw_amount / usdToCryptoRate;
     cryptoAmount = Number(cryptoAmount.toFixed(8));  // limit to 8 decimal places
-
 
     const accountID = '98bdbfe3-aea1-5495-b4eb-d660c3fcc288' //BTC
     
@@ -477,14 +562,15 @@ app.post('/withdraw', async (req, res) => {
             }, async function(err, tx) {
                 if (err) {
                     console.error('Error sending money:', err);
+                    return res.status(400).send('Error sending money:' + err);
                 }
 
                 user.credits -= withdraw_amount;
                 await user.save();
 
-                console.log(tx);
-                console.log(`CRYPTO SENT \n TO: ${wallet_address} \n AMOUNT: ${withdraw_amount}`)
-                res.redirect(`/${user.username}/credit-management`)
+                // console.log(tx);
+                console.log(`CRYPTO SENT \nTO: ${wallet_address} \nAMOUNT: ${withdraw_amount}`)
+                return res.redirect(`/${user.username}/credit-management`)
             });
         });
         
@@ -493,7 +579,7 @@ app.post('/withdraw', async (req, res) => {
     }    
 })
 
-app.post('/send-money', (req, res) => {
+app.post('/send-money',  requireLogin, (req, res) => {
     // Coinbase sends the raw request body string in the req.rawBody property
     const signature = req.headers['x-cc-webhook-signature'];
     const hmac = crypto.createHmac('sha256', COINBASE_API_SECRET);
@@ -524,19 +610,19 @@ app.post('/send-money', (req, res) => {
 });
   
 
-app.delete('/logout', (req, res) => {
-    if (req.session) {
-        req.session.destroy(err => {
+app.post('/logout',  requireLogin, (req, res) => {
+    req.session.destroy(err => {
         if (err) {
-            res.status(400).send('Unable to log out')
-        } else {
-            res.send('Logout successful')
+            console.error('Error:', err);
+            return res.status(500).send('An error occurred while logging out');
         }
-        });
-    } else {
-        res.end()
-    }
-})
+        
+        // Clear the cookie
+        res.clearCookie('email');
+        // res.sendStatus(200);
+        res.redirect(`/signIn`)
+    });
+}); 
 
 
 app.listen(3000, () => console.log('Server running on port 3000'));
